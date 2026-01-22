@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>基于家校协同的托管所管理系统 - 林思慧</title>
+  <style>
+    :root{
+      --primary:#3b82f6;
+      --secondary:#10b981;
+      --accent:#f59e0b;
+      --dark:#1e293b;
+      --light:#f8fafc;
+      --border:#e2e8f0;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--light);color:var(--dark);height:100vh;overflow:hidden}
+
+    /* --- Inline SVG 图标（完全离线）--- */
+    .ico{width:18px;height:18px;display:inline-block;vertical-align:-3px}
+    .ico.lg{width:52px;height:52px}
+    .ico.xl{width:40px;height:40px}
+    .ico.soft{opacity:.35}
+    .ico.stroke{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+    /* --- 登录层 --- */
+    #login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1e293b 0%,#334155 100%);z-index:10000;display:flex;align-items:center;justify-content:center}
+    .login-box{background:#fff;padding:40px;border-radius:24px;width:90%;max-width:400px;text-align:center;box-shadow:0 25px 50px -12px rgba(0,0,0,.5)}
+    .login-box h1{font-size:22px;margin-bottom:8px;color:var(--dark)}
+    .login-box p{color:#64748b;font-size:14px;margin-bottom:30px}
+    .role-btn{width:100%;padding:14px;margin:8px 0;border:none;border-radius:12px;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;transition:transform .2s,opacity .2s}
+    .role-btn:active{transform:scale(.98)}
+    .btn-admin{background:var(--primary);color:#fff}
+    .btn-teacher{background:var(--secondary);color:#fff}
+    .btn-parent{background:var(--accent);color:#fff}
+
+    /* --- 主布局 --- */
+    #app-root{display:none;height:100vh;flex-direction:row}
+
+    .sidebar{width:260px;background:var(--dark);color:#94a3b8;display:flex;flex-direction:column;transition:all .3s}
+    .sidebar-brand{padding:30px 24px;color:#fff;font-size:18px;font-weight:700;border-bottom:1px solid #334155}
+    .nav-group{padding:20px 0;flex-grow:1}
+    .nav-link{padding:14px 24px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.2s;font-size:15px}
+    .nav-link:hover{background:#334155;color:#fff}
+    .nav-link.active{background:rgba(59,130,246,.15);color:var(--primary);border-right:4px solid var(--primary)}
+    .nav-link .ico{color:currentColor}
+
+    .main{flex-grow:1;display:flex;flex-direction:column;overflow:hidden}
+    header{height:70px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 30px}
+    .view-container{padding:30px;overflow-y:auto;flex-grow:1}
+
+    .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;margin-bottom:30px}
+    .card{background:#fff;padding:24px;border-radius:16px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .stat-val{font-size:28px;font-weight:800;margin-top:10px;color:var(--primary)}
+
+    .data-table{width:100%;border-collapse:collapse;margin-top:10px}
+    .data-table th{text-align:left;padding:12px 16px;background:#f8fafc;color:#64748b;font-size:13px}
+    .data-table td{padding:16px;border-bottom:1px solid var(--border);font-size:14px}
+
+    .badge{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+    .status-ok{background:#dcfce7;color:#15803d}
+    .status-warn{background:#fef9c3;color:#a16207}
+
+    .mobile-view{max-width:500px;margin:0 auto}
+    .parent-info-card{background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);color:#fff;padding:25px;border-radius:24px;margin-bottom:20px}
+
+    .page{display:none;animation:fadeIn .3s ease}
+    .page.active{display:block}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+    @media (max-width:768px){
+      .sidebar{width:70px}
+      .sidebar span,.sidebar-brand{display:none}
+      .nav-link{justify-content:center;padding:20px 0}
+    }
+  </style>
+</head>
+<body>
+
+<!-- SVG Symbols（离线图标库） -->
+<svg width="0" height="0" style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true" focusable="false">
+  <symbol id="i-school" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M3 10.5l9-5 9 5"/>
+    <path class="ico.stroke" d="M5 10.5V20h14v-9.5"/>
+    <path class="ico.stroke" d="M9 20v-6h6v6"/>
+  </symbol>
+
+  <symbol id="i-shield-user" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M12 11a4 4 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M4 20c1.5-4 14.5-4 16 0"/>
+    <path class="ico.stroke" d="M19 5l-4 2v4c0 3 2 5 4 6c2-1 4-3 4-6V7l-4-2z"/>
+  </symbol>
+
+  <symbol id="i-teacher" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M4 6h16v8H4z"/>
+    <path class="ico.stroke" d="M8 18h8"/>
+    <path class="ico.stroke" d="M12 14v6"/>
+    <path class="ico.stroke" d="M7 9h6"/>
+  </symbol>
+
+  <symbol id="i-users" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M8 12a3 3 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M16 12a3 3 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M3 20c1-3 9-3 10 0"/>
+    <path class="ico.stroke" d="M11 20c1-3 9-3 10 0"/>
+  </symbol>
+
+  <symbol id="i-logout" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2"/>
+    <path class="ico.stroke" d="M3 12h10"/>
+    <path class="ico.stroke" d="M7 8l-4 4l4 4"/>
+  </symbol>
+
+  <symbol id="i-pie" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M12 3v9h9"/>
+    <path class="ico.stroke" d="M21 12a9 9 0 1 1-9-9"/>
+  </symbol>
+
+  <symbol id="i-calculator" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+    <path class="ico.stroke" d="M7 7h10"/>
+    <path class="ico.stroke" d="M8 11h1M12 11h1M16 11h1M8 15h1M12 15h1M16 15h1"/>
+  </symbol>
+
+  <symbol id="i-cog-users" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M8 11a3 3 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M3 20c1-3 9-3 10 0"/>
+    <path class="ico.stroke" d="M19 12l1 1l-1 1l-1-1l1-1z"/>
+    <path class="ico.stroke" d="M18 12a3 3 0 0 0-1 2a3 3 0 0 0 1 2"/>
+  </symbol>
+
+  <symbol id="i-user-check" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M9 11a4 4 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M2.5 20c1.4-4 12.6-4 14 0"/>
+    <path class="ico.stroke" d="M16 14l2 2l4-4"/>
+  </symbol>
+
+  <symbol id="i-book" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M4 5h7a3 3 0 0 1 3 3v13H7a3 3 0 0 0-3 3V5z"/>
+    <path class="ico.stroke" d="M20 5h-7a3 3 0 0 0-3 3"/>
+  </symbol>
+
+  <symbol id="i-plane" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M3 11l18-8l-8 18l-2-7l-8-3z"/>
+    <path class="ico.stroke" d="M11 14l10-11"/>
+  </symbol>
+
+  <symbol id="i-home" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M3 11l9-8l9 8"/>
+    <path class="ico.stroke" d="M5 10.5V21h14V10.5"/>
+    <path class="ico.stroke" d="M10 21v-6h4v6"/>
+  </symbol>
+
+  <symbol id="i-wallet" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M4 7h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/>
+    <path class="ico.stroke" d="M22 11h-6a2 2 0 0 0 0 4h6"/>
+    <path class="ico.stroke" d="M6 7V5a2 2 0 0 1 2-2h10"/>
+  </symbol>
+
+  <symbol id="i-clipboard" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M9 4h6v3H9z"/>
+    <path class="ico.stroke" d="M7 7h10v14H7z"/>
+    <path class="ico.stroke" d="M9 12h6M9 16h6"/>
+  </symbol>
+
+  <symbol id="i-megaphone" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M4 12l12-5v10L4 12z"/>
+    <path class="ico.stroke" d="M4 12v4a2 2 0 0 0 2 2h2v-6"/>
+    <path class="ico.stroke" d="M18 9a3 3 0 0 1 0 6"/>
+  </symbol>
+
+  <symbol id="i-child" viewBox="0 0 24 24">
+    <path class="ico.stroke" d="M12 7a2 2 0 1 0-0.01 0"/>
+    <path class="ico.stroke" d="M12 9v6"/>
+    <path class="ico.stroke" d="M9 21l3-6l3 6"/>
+    <path class="ico.stroke" d="M9 13l-3 2M15 13l3 2"/>
+  </symbol>
+</svg>
+
+<!-- 登录选择界面 -->
+<div id="login-screen">
+  <div class="login-box">
+    <div style="margin-bottom:16px;color:var(--primary);">
+      <svg class="ico lg" aria-hidden="true"><use href="#i-school"></use></svg>
+    </div>
+    <h1>智育托管管理系统</h1>
+    <p>基于家校协同的毕业设计演示（离线版：不依赖外网资源）</p>
+
+    <button class="role-btn btn-admin" onclick="initApp('admin')">
+      <svg class="ico" aria-hidden="true"><use href="#i-shield-user"></use></svg>
+      管理员端 (系统配置)
+    </button>
+    <button class="role-btn btn-teacher" onclick="initApp('teacher')">
+      <svg class="ico" aria-hidden="true"><use href="#i-teacher"></use></svg>
+      教师端 (业务操作)
+    </button>
+    <button class="role-btn btn-parent" onclick="initApp('parent')">
+      <svg class="ico" aria-hidden="true"><use href="#i-users"></use></svg>
+      家长端 (响应式手机端)
+    </button>
+
+    <div style="margin-top:30px;font-size:12px;color:#94a3b8;">
+      设计者：林思慧 | 指导教师：李瑜
+    </div>
+  </div>
+</div>
+
+<div id="app-root">
+  <aside class="sidebar">
+    <div class="sidebar-brand">托管系统 Pro</div>
+    <nav class="nav-group" id="dynamic-nav"></nav>
+    <div style="padding:20px;">
+      <button onclick="location.reload()" style="width:100%;padding:10px;background:#334155;border:none;color:#94a3b8;border-radius:8px;cursor:pointer;">
+        <svg class="ico" aria-hidden="true" style="margin-right:6px;"><use href="#i-logout"></use></svg>
+        <span>退出</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header>
+      <h2 id="header-title">系统概览</h2>
+      <div id="user-info" style="font-size:14px;font-weight:600;"></div>
+    </header>
+
+    <div class="view-container" id="view-port">
+      <!-- 管理员：仪表盘 -->
+      <div id="page-admin-dash" class="page">
+        <div class="grid-stats">
+          <div class="card"><h3>托管学生总数</h3><div class="stat-val">128 人</div></div>
+          <div class="card"><h3>教职工人数</h3><div class="stat-val">12 人</div></div>
+          <div class="card"><h3>本月实收规费</h3><div class="stat-val">¥ 52,400</div></div>
+        </div>
+        <div class="card">
+          <h3>角色权限分布 (SQL Server 存储架构展示)</h3>
+          <div style="height:150px;display:flex;align-items:flex-end;gap:20px;padding-top:20px;">
+            <div style="flex:1;background:var(--primary);height:80%;border-radius:4px;position:relative;">
+              <span style="position:absolute;top:-25px;width:100%;text-align:center;">家长 (128)</span>
+            </div>
+            <div style="flex:1;background:var(--secondary);height:30%;border-radius:4px;position:relative;">
+              <span style="position:absolute;top:-25px;width:100%;text-align:center;">教师 (10)</span>
+            </div>
+            <div style="flex:1;background:var(--dark);height:15%;border-radius:4px;position:relative;">
+              <span style="position:absolute;top:-25px;width:100%;text-align:center;">管理 (2)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 教师：考勤与反馈 -->
+      <div id="page-teacher-att" class="page">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
+            <h3>今日考勤确认 (2026-01-22)</h3>
+            <button class="role-btn btn-admin" style="width:auto;padding:8px 15px;">一键签到</button>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>姓名</th><th>班级</th><th>入托状态</th><th>家校反馈</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>张小凡</td><td>三年级二班</td>
+                <td><span class="badge status-ok">已到校 07:50</span></td>
+                <td><button onclick="alert('已发送异常提醒至家长手机')">发送提醒</button></td>
+              </tr>
+              <tr>
+                <td>王大锤</td><td>三年级二班</td>
+                <td><span class="badge status-warn">缺勤</span></td>
+                <td><button onclick="alert('反馈已记录：感冒请假')">查看请假条</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 教师：作业批改 -->
+      <div id="page-teacher-homework" class="page">
+        <div class="card">
+          <h3>作业反馈管理</h3>
+          <div style="margin-top:20px;">
+            <div style="padding:15px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;">
+              <p><b>学生：林青儿</b> | 提交时间：18:30</p>
+              <p style="color:#666;margin:10px 0;">数学练习册第12页已完成。</p>
+              <textarea placeholder="输入老师评语..." style="width:100%;padding:10px;margin-top:10px;"></textarea>
+              <button class="role-btn btn-teacher" style="width:120px;margin-top:10px;padding:8px;">发布反馈</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 家长端：首页 -->
+      <div id="page-parent-home" class="page mobile-view">
+        <div class="parent-info-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <p style="font-size:14px;opacity:.8;">我的孩子</p>
+              <h2 style="font-size:28px;">张小凡</h2>
+            </div>
+            <svg class="ico xl soft" aria-hidden="true"><use href="#i-child"></use></svg>
+          </div>
+          <div style="margin-top:25px;display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+            <div style="background:rgba(255,255,255,.1);padding:12px;border-radius:12px;">
+              <small>入托签到</small><br><b>07:50</b>
+            </div>
+            <div style="background:rgba(255,255,255,.1);padding:12px;border-radius:12px;">
+              <small>当前状态</small><br><b>托管中</b>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:15px;">
+          <h4>
+            <svg class="ico" aria-hidden="true" style="color:var(--secondary);margin-right:6px;"><use href="#i-clipboard"></use></svg>
+            今日作业反馈
+          </h4>
+          <p style="font-size:14px;color:#64748b;margin-top:10px;">李老师：小凡今天数学题速度很快，准确率100%，字迹工整。</p>
+        </div>
+        <div class="card">
+          <h4>
+            <svg class="ico" aria-hidden="true" style="color:var(--accent);margin-right:6px;"><use href="#i-megaphone"></use></svg>
+            最新通知
+          </h4>
+          <p style="font-size:14px;color:#64748b;margin-top:10px;">关于下周五举办“传统文化手工活动”的邀请通知...</p>
+        </div>
+      </div>
+
+      <!-- 通用：收费统计 -->
+      <div id="page-common-finance" class="page">
+        <div class="card">
+          <h3>财务数据中心</h3>
+          <div class="grid-stats" style="margin-top:20px;">
+            <div style="background:#f1f5f9;padding:20px;border-radius:12px;">
+              <small>本月应收</small><h3>¥ 55,000</h3>
+            </div>
+            <div style="background:#f1f5f9;padding:20px;border-radius:12px;">
+              <small>本月实收</small><h3>¥ 52,400</h3>
+            </div>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>账单号</th><th>学生</th><th>项目</th><th>金额</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>#INV-001</td><td>张小凡</td><td>10月托管费</td><td>¥ 1500</td><td><span class="badge status-ok">已缴费</span></td></tr>
+              <tr><td>#INV-002</td><td>林青儿</td><td>10月伙食费</td><td>¥ 450</td><td><span class="badge status-warn">待缴纳</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const navConfigs = {
+    admin: [
+      { id:'admin-dash', icon:'i-pie', text:'系统概览', page:'page-admin-dash' },
+      { id:'finance', icon:'i-calculator', text:'财务统计', page:'page-common-finance' },
+      { id:'users', icon:'i-cog-users', text:'角色权限', page:'page-admin-dash' }
+    ],
+    teacher: [
+      { id:'teacher-att', icon:'i-user-check', text:'考勤签到', page:'page-teacher-att' },
+      { id:'teacher-hw', icon:'i-book', text:'作业反馈', page:'page-teacher-homework' },
+      { id:'notice', icon:'i-plane', text:'发布通知', page:'page-teacher-att' }
+    ],
+    parent: [
+      { id:'parent-home', icon:'i-home', text:'孩子动态', page:'page-parent-home' },
+      { id:'parent-finance', icon:'i-wallet', text:'在线缴费', page:'page-common-finance' }
+    ]
+  };
+
+  function svgUse(id){
+    return `<svg class="ico" aria-hidden="true"><use href="#${id}"></use></svg>`;
+  }
+
+  function initApp(role) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-root').style.display = 'flex';
+
+    const userInfo = document.getElementById('user-info');
+    const dynamicNav = document.getElementById('dynamic-nav');
+
+    const roleNames = { admin:'系统管理员', teacher:'带班老师(李老师)', parent:'学生家长(张先生)' };
+    userInfo.innerText = roleNames[role];
+
+    dynamicNav.innerHTML = '';
+    navConfigs[role].forEach((item, index) => {
+      const div = document.createElement('div');
+      div.className = `nav-link ${index === 0 ? 'active' : ''}`;
+      div.innerHTML = `${svgUse(item.icon)} <span>${item.text}</span>`;
+      div.onclick = () => {
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        div.classList.add('active');
+        showPage(item.page, item.text);
+      };
+      dynamicNav.appendChild(div);
+    });
+
+    showPage(navConfigs[role][0].page, navConfigs[role][0].text);
+  }
+
+  function showPage(pageId, title) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+    document.getElementById('header-title').innerText = title;
+  }
+</script>
+</body>
+</html>
